@@ -72,3 +72,57 @@ class ForecastRead(ForecastBase):
 
 
 
+# API response schemas 
+
+class SummaryTickerOut(BaseModel):
+    symbol: str
+    last_close: float | None = None
+    last_ts: datetime | None = None
+    change_pct: float | None = None
+    forecast_close: float | None = None
+
+
+class SummaryResponse(BaseModel):
+    tickers: list[SummaryTickerOut]
+    as_of: datetime
+
+
+class PriceCandleOut(BaseModel):
+    ts: datetime
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float
+    volume: int | None = None
+
+
+class PricesResponse(BaseModel):
+    symbol: str
+    points: list[PriceCandleOut]
+
+
+class ForecastOut(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    created_at: datetime
+    horizon_label: str
+    predicted_close: float
+    model_version: str
+
+
+class ForecastsResponse(BaseModel):
+    symbol: str
+    forecasts: list[ForecastOut]
+
+
+class AlertOut(BaseModel):
+    id: int
+    symbol: str
+    kind: str
+    severity: str
+    message: str
+    created_at: datetime
+
+
+class AlertsResponse(BaseModel):
+    alerts: list[AlertOut]

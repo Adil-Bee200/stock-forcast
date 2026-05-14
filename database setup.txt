@@ -1,0 +1,10 @@
+How to run
+From backend/ with Postgres up and .env correct:
+
+pip install -r requirements.txt
+python -m app.scripts.ingest_prices
+python -m app.scripts.ingest_prices --symbols AAPL --period 5y
+python -m app.scripts.ingest_prices --no-info
+--no-info skips per-symbol info (fewer HTTP calls; name stays null).
+
+After a successful run, GET /api/summary, /api/prices/{symbol}, etc. should return real rows (404 on symbols you never ingested).

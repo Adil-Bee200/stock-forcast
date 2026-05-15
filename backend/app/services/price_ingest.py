@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -28,7 +29,7 @@ DEFAULT_SYMBOLS: tuple[str, ...] = (
 
 
 def _to_utc_index(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
-    """Normalize Yahoo daily bar timestamps to UTC-aware datetimes."""
+    ## Normalize Yahoo daily bar timestamps to UTC-aware datetimes.
     idx = pd.DatetimeIndex(pd.to_datetime(index, utc=False))
     if idx.tz is None:
         idx = idx.tz_localize(
@@ -60,7 +61,7 @@ def _volume_or_none(x: object) -> int | None:
 
 
 def ensure_ticker(session: Session, symbol: str) -> Ticker:
-    """Return existing ``Ticker`` row or insert a new one (symbol uppercased)."""
+    ## Return existing ``Ticker`` row or insert a new one (symbol uppercased).
     sym = symbol.upper().strip()
     row = session.scalars(select(Ticker).where(Ticker.symbol == sym)).first()
     if row is not None:
@@ -72,7 +73,6 @@ def ensure_ticker(session: Session, symbol: str) -> Ticker:
 
 
 def enrich_ticker_metadata(session: Session, ticker: Ticker) -> None:
-    """Best-effort: fill ``name`` / ``exchange`` from Yahoo ``info``."""
     try:
         info = yf.Ticker(ticker.symbol).info or {}
     except Exception as exc:  
@@ -87,7 +87,7 @@ def enrich_ticker_metadata(session: Session, ticker: Ticker) -> None:
 
 
 def fetch_daily_history(symbol: str, period: str) -> pd.DataFrame:
-    """Return a Yahoo Finance daily history dataframe (may be empty)."""
+    ## Return a Yahoo Finance daily history dataframe (may be empty).
     df = yf.Ticker(symbol).history(period=period, interval="1d", auto_adjust=False)
     if df is None or df.empty:
         return pd.DataFrame()
@@ -101,7 +101,7 @@ def upsert_price_points(
     hist: pd.DataFrame,
     source: str = "yfinance",
 ) -> int:
-    """Insert or update rows in ``price_points`` for ``hist``. Returns rows touched."""
+    ## Insert or update rows in ``price_points`` for ``hist``. Returns rows touched.
     if hist.empty:
         return 0
 
@@ -148,6 +148,33 @@ def upsert_price_points(
     return count
 
 
+@dataclass(frozen=True)
+class IngestSymbolResult:
+    symbol: str
+    rows: int
+    error: str | None = None
+
+
+def ingest_all(
+    session: Session,
+    symbols: list[str],
+    *,
+    period: str = "1y",
+    fetch_info: bool = True,
+) -> list[IngestSymbolResult]:
+    ## Ingest each symbol; commit per symbol so one failure does not roll back others.
+    results: list[IngestSymbolResult] = []
+    for sym in symbols:
+        n, err = ingest_symbol(session, sym, period=period, fetch_info=fetch_info)
+        if err:
+            session.rollback()
+            results.append(IngestSymbolResult(symbol=sym.upper(), rows=0, error=err))
+        else:
+            session.commit()
+            results.append(IngestSymbolResult(symbol=sym.upper(), rows=n, error=None))
+    return results
+
+
 def ingest_symbol(
     session: Session,
     symbol: str,
@@ -155,7 +182,7 @@ def ingest_symbol(
     period: str = "1y",
     fetch_info: bool = True,
 ) -> tuple[int, str | None]:
-    """Ingest one symbol. Returns ``(rows_upserted, error_message)``."""
+    ## Ingest one symbol. Returns ``(rows_upserted, error_message)``.
     sym = symbol.upper().strip()
     try:
         ticker = ensure_ticker(session, sym)

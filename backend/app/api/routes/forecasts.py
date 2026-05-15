@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_ticker_or_404
@@ -12,6 +12,7 @@ from app.schemas import ForecastOut, ForecastsResponse
 router = APIRouter(tags=["forecasts"])
 
 MAX_FORECASTS = 200
+PROPHET_MODEL_NAME = "prophet_v1"
 
 
 def _horizon_label(forecast_for: datetime, generated_at: datetime) -> str:
@@ -38,7 +39,11 @@ def get_forecasts(
             Forecast.ticker_id == ticker.id,
             Forecast.predicted_price.is_not(None),
         )
-        .order_by(Forecast.generated_at.desc())
+        .order_by(
+            Forecast.generated_at.desc(),
+            case((Forecast.model_name == PROPHET_MODEL_NAME, 0), else_=1),
+            Forecast.id.desc(),
+        )
         .limit(limit)
     ).all()
 

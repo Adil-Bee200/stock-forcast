@@ -1,0 +1,16 @@
+Generic single-database configuration.
+
+Run from ``backend/`` (with ``.env`` or env vars set):
+
+  alembic upgrade head
+  alembic current
+  alembic revision --autogenerate -m "add column"
+  alembic downgrade -1
+
+If you see ``DuplicateTable: relation "tickers" already exists``, the schema is
+already there (e.g. from ``create_all``). Do **not** run ``upgrade`` again — stamp:
+
+  alembic stamp head
+  alembic current
+
+``stamp`` only writes the revision row in ``alembic_version``; it does not change tables.

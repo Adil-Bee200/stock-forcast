@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     db_echo: bool = Field(default=False)
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
+    # Dev-only: skip Alembic and call ``create_all`` on API startup.
+    db_auto_create: bool = Field(default=False)
 
     # --- Worker (EOD ingest + nightly Prophet / baseline training) ---
     worker_symbols: str = Field(

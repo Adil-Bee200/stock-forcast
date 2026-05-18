@@ -34,15 +34,15 @@ def get_db():
 
 
 def init_db() -> None:
-    """Create tables for all registered models if they don't exist.
+    """Ensure schema exists.
 
-    Importing the models module here guarantees they are registered on
-    ``Base.metadata`` before ``create_all`` runs. For production schema
-    changes, prefer Alembic migrations.
+    Production: run ``alembic upgrade head`` (see ``backend/alembic``).
+    Set ``DB_AUTO_CREATE=true`` only for quick local dev without migrations.
     """
     from app import models  # noqa: F401  (register models on Base.metadata)
 
-    Base.metadata.create_all(bind=engine)
+    if settings.db_auto_create:
+        Base.metadata.create_all(bind=engine)
 
 
 def check_db_connection() -> bool:

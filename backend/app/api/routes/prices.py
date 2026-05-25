@@ -7,12 +7,18 @@ from app.core.database import get_db
 from app.models import PricePoint, Ticker
 from app.schemas import PriceCandleOut, PricesResponse
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(tags=["prices"])
 
 MAX_PRICE_POINTS = 1000
 
 
 @router.get("/prices/{symbol}", response_model=PricesResponse)
+@limiter.limit("5/minute")
 def get_prices(
     ticker: Ticker = Depends(get_ticker_or_404),
     limit: int = Query(default=200, ge=1, le=MAX_PRICE_POINTS),

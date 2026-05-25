@@ -9,6 +9,11 @@ from app.core.database import get_db
 from app.models import Forecast, Ticker
 from app.schemas import ForecastOut, ForecastsResponse
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(tags=["forecasts"])
 
 MAX_FORECASTS = 200
@@ -28,6 +33,7 @@ def _horizon_label(forecast_for: datetime, generated_at: datetime) -> str:
 
 
 @router.get("/forecasts/{symbol}", response_model=ForecastsResponse)
+@limiter.limit("5/minute")
 def get_forecasts(
     ticker: Ticker = Depends(get_ticker_or_404),
     limit: int = Query(default=20, ge=1, le=MAX_FORECASTS),

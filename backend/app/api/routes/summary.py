@@ -8,10 +8,16 @@ from app.core.database import get_db
 from app.models import Forecast, PricePoint, Ticker
 from app.schemas import SummaryResponse, SummaryTickerOut
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(tags=["summary"])
 
 
 @router.get("/summary", response_model=SummaryResponse)
+@limiter.limit("5/minute")
 def get_summary(db: Session = Depends(get_db)) -> SummaryResponse:
     tickers = db.scalars(select(Ticker).order_by(Ticker.symbol)).all()
 

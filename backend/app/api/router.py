@@ -7,3 +7,4 @@ api_router.include_router(summary.router)
 api_router.include_router(alerts.router)
 api_router.include_router(prices.router)
 api_router.include_router(forecasts.router)
+

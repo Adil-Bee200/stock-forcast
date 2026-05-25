@@ -8,6 +8,10 @@ from app.core.config import settings
 from app.core.database import check_db_connection, init_db
 from app.core.logging_config import setup_logging
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 setup_logging()
 
 
@@ -27,6 +31,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+limiter = Limiter(key_func=get_remote_address)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -39,6 +48,7 @@ app.include_router(api_router)
 
 
 @app.get("/")
+@limiter.limit("5/minute")
 async def root():
     return {
         "message": settings.api_title,
@@ -49,6 +59,7 @@ async def root():
 
 
 @app.get("/health")
+@limiter.limit("5/minute")
 async def health_check():
     db_ok = check_db_connection()
     return {

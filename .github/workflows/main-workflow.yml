@@ -4,7 +4,7 @@ on:
     - cron: '*/5 * * * *'
       timezone: "America/New_York"
 jobs:
-  Explore-GitHub-Actions:
+  Injest data and train:
     runs-on: ubuntu-latest
     steps:
 

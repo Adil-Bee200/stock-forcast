@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ MAX_PRICE_POINTS = 1000
 @router.get("/prices/{symbol}", response_model=PricesResponse)
 @limiter.limit("5/minute")
 def get_prices(
+    request: Request,
     ticker: Ticker = Depends(get_ticker_or_404),
     limit: int = Query(default=200, ge=1, le=MAX_PRICE_POINTS),
     db: Session = Depends(get_db),

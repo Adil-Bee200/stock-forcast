@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ router = APIRouter(tags=["summary"])
 
 @router.get("/summary", response_model=SummaryResponse)
 @limiter.limit("5/minute")
-def get_summary(db: Session = Depends(get_db)) -> SummaryResponse:
+def get_summary(request: Request, db: Session = Depends(get_db)) -> SummaryResponse:
     tickers = db.scalars(select(Ticker).order_by(Ticker.symbol)).all()
 
     rows: list[SummaryTickerOut] = []

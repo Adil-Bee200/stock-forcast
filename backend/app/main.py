@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
@@ -48,7 +48,7 @@ app.include_router(api_router)
 
 @app.get("/")
 @limiter.limit("5/minute")
-async def root():
+async def root(request: Request):
     return {
         "message": settings.api_title,
         "version": settings.api_version,
@@ -59,7 +59,7 @@ async def root():
 
 @app.get("/health")
 @limiter.limit("5/minute")
-async def health_check():
+async def health_check(request: Request):
     db_ok = check_db_connection()
     return {
         "status": "healthy" if db_ok else "degraded",

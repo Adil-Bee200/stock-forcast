@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ def _horizon_label(forecast_for: datetime, generated_at: datetime) -> str:
 @router.get("/forecasts/{symbol}", response_model=ForecastsResponse)
 @limiter.limit("5/minute")
 def get_forecasts(
+    request: Request,
     ticker: Ticker = Depends(get_ticker_or_404),
     limit: int = Query(default=20, ge=1, le=MAX_FORECASTS),
     db: Session = Depends(get_db),

@@ -1,5 +1,3 @@
-"""Reusable FastAPI dependencies for the /api routes."""
-
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session

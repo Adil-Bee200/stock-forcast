@@ -21,7 +21,6 @@ PROPHET_MODEL_NAME = "prophet_v1"
 
 
 def _horizon_label(forecast_for: datetime, generated_at: datetime) -> str:
-    """Human label like ``5m`` / ``2h`` / ``3d`` for a forecast horizon."""
     delta = forecast_for - generated_at
     seconds = max(int(delta.total_seconds()), 0)
     if seconds < 3600:

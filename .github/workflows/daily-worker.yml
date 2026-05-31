@@ -1,0 +1,53 @@
+# Nightly EOD ingest + Prophet/naive training against production Postgres.
+#
+# Required repository secret:
+#   DATABASE_URL — e.g. postgresql://user:pass@host/dbname (Neon, Supabase, etc.)
+
+name: Daily worker
+
+on:
+  schedule:
+    # Mon–Fri 22:05 America/New_York (after US equity close)
+    - cron: "5 22 * * 1-5"
+      timezone: America/New_York
+  workflow_dispatch:
+
+concurrency:
+  group: daily-worker
+  cancel-in-progress: false
+
+jobs:
+  eod-ingest-and-train:
+    name: EOD ingest and train
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: production
+      LOG_LEVEL: INFO
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      WORKER_FETCH_TICKER_INFO: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install CmdStan (Prophet)
+        run: python -c "import cmdstanpy; cmdstanpy.install_cmdstan(verbose=True)"
+
+      - name: Apply database migrations
+        run: alembic upgrade head
+
+      - name: Run daily pipeline
+        run: python -m app.scripts.run_worker --once daily -v

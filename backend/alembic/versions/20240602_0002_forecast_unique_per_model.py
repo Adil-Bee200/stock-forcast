@@ -17,10 +17,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.drop_constraint(
-        "uix_ticker_forecast_for_generated_at",
-        "forecasts",
-        type_="unique",
+    # Idempotent for re-runs / partially applied DBs.
+    op.execute(
+        "ALTER TABLE forecasts DROP CONSTRAINT IF EXISTS uix_ticker_forecast_for_generated_at"
+    )
+    op.execute(
+        "ALTER TABLE forecasts DROP CONSTRAINT IF EXISTS uix_ticker_forecast_for_model"
     )
     op.create_unique_constraint(
         "uix_ticker_forecast_for_model",
@@ -30,10 +32,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "uix_ticker_forecast_for_model",
-        "forecasts",
-        type_="unique",
+    op.execute(
+        "ALTER TABLE forecasts DROP CONSTRAINT IF EXISTS uix_ticker_forecast_for_model"
+    )
+    op.execute(
+        "ALTER TABLE forecasts DROP CONSTRAINT IF EXISTS uix_ticker_forecast_for_generated_at"
     )
     op.create_unique_constraint(
         "uix_ticker_forecast_for_generated_at",

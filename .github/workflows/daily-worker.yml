@@ -47,7 +47,10 @@ jobs:
         run: python -c "import cmdstanpy; cmdstanpy.install_cmdstan(verbose=True)"
 
       - name: Apply database migrations
-        run: alembic upgrade head
+        run: |
+          alembic current
+          alembic upgrade head
+          alembic current
 
       - name: Run daily pipeline
         run: python -m app.scripts.run_worker --once daily -v

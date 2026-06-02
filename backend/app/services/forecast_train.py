@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 from prophet import Prophet
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -89,11 +89,12 @@ def _persist_forecast(
     model_name: str,
     generated_at: datetime,
 ) -> None:
-    """Upsert so daily worker re-runs and dual-model writes stay idempotent."""
+    """Upsert one model row; uses table insert (not ORM ``session.add``)."""
     forecast_for = _normalize_ts(forecast_for)
     generated_at = _normalize_ts(generated_at)
 
-    stmt = pg_insert(Forecast).values(
+    table = Forecast.__table__
+    stmt = pg_insert(table).values(
         ticker_id=ticker_id,
         forecast_for=forecast_for,
         predicted_price=predicted_price,
@@ -103,7 +104,7 @@ def _persist_forecast(
         generated_at=generated_at,
     )
     stmt = stmt.on_conflict_do_update(
-        constraint="uix_ticker_forecast_for_model",
+        index_elements=["ticker_id", "forecast_for", "model_name"],
         set_={
             "predicted_price": stmt.excluded.predicted_price,
             "lower_bound": stmt.excluded.lower_bound,
@@ -112,6 +113,7 @@ def _persist_forecast(
         },
     )
     session.execute(stmt)
+    session.flush()
 
 
 def train_symbol(
@@ -149,6 +151,15 @@ def train_symbol(
         )
 
     forecast_for = _normalize_ts(forecast_for)
+
+    # Clear prior rows for this horizon so re-runs stay clean (pre-migration DBs too).
+    session.execute(
+        delete(Forecast).where(
+            Forecast.ticker_id == ticker.id,
+            Forecast.forecast_for == forecast_for,
+        )
+    )
+    session.flush()
 
     _persist_forecast(
         session,

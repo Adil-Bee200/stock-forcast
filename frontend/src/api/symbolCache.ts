@@ -1,11 +1,18 @@
 import type { ForecastsResponse, PricesResponse, SummaryResponse, SummaryTicker } from "./client";
 
-/** Prefer fresh data; stale entries kept indefinitely for rate-limit fallbacks. */
 export const SYMBOL_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const STORAGE_KEY = "stock-predictor-api-cache";
 
 type CacheEntry<T> = {
   data: T;
   fetchedAt: number;
+};
+
+type PersistedCache = {
+  summary: CacheEntry<SummaryResponse> | null;
+  prices: Record<string, CacheEntry<PricesResponse>>;
+  forecasts: Record<string, CacheEntry<ForecastsResponse>>;
 };
 
 const pricesCache = new Map<string, CacheEntry<PricesResponse>>();
@@ -21,6 +28,43 @@ function readEntry<T>(entry: CacheEntry<T> | undefined, allowStale: boolean): T 
   if (isFresh(entry) || allowStale) return entry.data;
   return null;
 }
+
+function loadFromSessionStorage(): void {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw) as PersistedCache;
+    summaryCache = parsed.summary ?? null;
+
+    pricesCache.clear();
+    for (const [symbol, entry] of Object.entries(parsed.prices ?? {})) {
+      pricesCache.set(symbol, entry);
+    }
+
+    forecastsCache.clear();
+    for (const [symbol, entry] of Object.entries(parsed.forecasts ?? {})) {
+      forecastsCache.set(symbol, entry);
+    }
+  } catch {
+    /* ignore corrupt storage */
+  }
+}
+
+function persistToSessionStorage(): void {
+  try {
+    const payload: PersistedCache = {
+      summary: summaryCache,
+      prices: Object.fromEntries(pricesCache.entries()),
+      forecasts: Object.fromEntries(forecastsCache.entries()),
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota exceeded or private mode */
+  }
+}
+
+loadFromSessionStorage();
 
 export function getCachedPrices(symbol: string): PricesResponse | null {
   return readEntry(pricesCache.get(symbol), false);
@@ -48,14 +92,17 @@ export function getStaleSummary(): SummaryResponse | null {
 
 export function setCachedPrices(symbol: string, data: PricesResponse): void {
   pricesCache.set(symbol, { data, fetchedAt: Date.now() });
+  persistToSessionStorage();
 }
 
 export function setCachedForecasts(symbol: string, data: ForecastsResponse): void {
   forecastsCache.set(symbol, { data, fetchedAt: Date.now() });
+  persistToSessionStorage();
 }
 
 export function setCachedSummary(data: SummaryResponse): void {
   summaryCache = { data, fetchedAt: Date.now() };
+  persistToSessionStorage();
 }
 
 /** Fill missing watchlist prices from per-symbol price cache after a rate limit. */
@@ -102,4 +149,10 @@ export function buildWatchlistTickers(
       }));
 
   return base.map(enrichTickerFromPriceCache);
+}
+
+export function hasPersistedData(): boolean {
+  return (
+    summaryCache != null || pricesCache.size > 0 || forecastsCache.size > 0
+  );
 }

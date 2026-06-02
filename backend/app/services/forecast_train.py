@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pandas as pd
 from prophet import Prophet
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models import Forecast, PricePoint, Ticker
@@ -71,11 +72,10 @@ def _fit_prophet_next_day(prophet_df: pd.DataFrame) -> tuple[float, float, float
     return pred, lower, upper, forecast_for
 
 
-def _next_forecast_ts(last_ts: datetime) -> datetime:
-    ## Fallback target time when Prophet ds is not used (naive baseline)
-    if last_ts.tzinfo is None:
-        last_ts = last_ts.replace(tzinfo=timezone.utc)
-    return last_ts + timedelta(days=1)
+def _normalize_ts(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
 
 
 def _persist_forecast(
@@ -89,17 +89,29 @@ def _persist_forecast(
     model_name: str,
     generated_at: datetime,
 ) -> None:
-    session.add(
-        Forecast(
-            ticker_id=ticker_id,
-            forecast_for=forecast_for,
-            predicted_price=predicted_price,
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
-            model_name=model_name,
-            generated_at=generated_at,
-        )
+    """Upsert so daily worker re-runs and dual-model writes stay idempotent."""
+    forecast_for = _normalize_ts(forecast_for)
+    generated_at = _normalize_ts(generated_at)
+
+    stmt = pg_insert(Forecast).values(
+        ticker_id=ticker_id,
+        forecast_for=forecast_for,
+        predicted_price=predicted_price,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        model_name=model_name,
+        generated_at=generated_at,
     )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uix_ticker_forecast_for_model",
+        set_={
+            "predicted_price": stmt.excluded.predicted_price,
+            "lower_bound": stmt.excluded.lower_bound,
+            "upper_bound": stmt.excluded.upper_bound,
+            "generated_at": stmt.excluded.generated_at,
+        },
+    )
+    session.execute(stmt)
 
 
 def train_symbol(
@@ -119,14 +131,13 @@ def train_symbol(
         )
 
     last_ts = df["ts"].iloc[-1]
-    naive_forecast_for = _next_forecast_ts(last_ts)
     generated_at = datetime.now(timezone.utc)
     naive_pred = float(df["close"].iloc[-1])
 
     try:
         prophet_df = _to_prophet_frame(df)
-        prophet_pred, prophet_lower, prophet_upper, prophet_forecast_for = (
-            _fit_prophet_next_day(prophet_df)
+        prophet_pred, prophet_lower, prophet_upper, forecast_for = _fit_prophet_next_day(
+            prophet_df
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("Prophet fit failed for %s", ticker.symbol)
@@ -137,11 +148,12 @@ def train_symbol(
             error=str(exc),
         )
 
-    # Naive first, Prophet second => higher id / same generated_at => UI picks Prophet.
+    forecast_for = _normalize_ts(forecast_for)
+
     _persist_forecast(
         session,
         ticker_id=ticker.id,
-        forecast_for=naive_forecast_for,
+        forecast_for=forecast_for,
         predicted_price=naive_pred,
         lower_bound=naive_pred,
         upper_bound=naive_pred,
@@ -151,7 +163,7 @@ def train_symbol(
     _persist_forecast(
         session,
         ticker_id=ticker.id,
-        forecast_for=prophet_forecast_for,
+        forecast_for=forecast_for,
         predicted_price=prophet_pred,
         lower_bound=prophet_lower,
         upper_bound=prophet_upper,
@@ -166,7 +178,7 @@ def train_symbol(
         prophet_lower,
         prophet_upper,
         naive_pred,
-        prophet_forecast_for.isoformat(),
+        forecast_for.isoformat(),
     )
     return TrainSymbolResult(
         symbol=ticker.symbol,

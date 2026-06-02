@@ -96,5 +96,10 @@ class Forecast(Base):
             "ticker_id",
             "forecast_for",
         ),
-        UniqueConstraint('ticker_id', 'forecast_for', 'generated_at', name='uix_ticker_forecast_for_generated_at'),
+        UniqueConstraint(
+            "ticker_id",
+            "forecast_for",
+            "model_name",
+            name="uix_ticker_forecast_for_model",
+        ),
     )

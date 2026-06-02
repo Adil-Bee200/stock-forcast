@@ -1,0 +1,13 @@
+# Monorepo: React app lives in frontend/
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA: serve index.html for all routes (refresh / deep links)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

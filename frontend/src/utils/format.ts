@@ -76,6 +76,23 @@ export function fmtChartTime(iso: string, range: string): string {
   }
 }
 
+/** Intraday axis labels — always US market (Eastern) time. */
+export function fmtIntradayChartTime(iso: string): string {
+  try {
+    return (
+      new Date(iso).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: MARKET_TIMEZONE,
+      }) + " ET"
+    );
+  } catch {
+    return iso;
+  }
+}
+
 export function fmtVolume(v: number | null | undefined): string {
   if (v == null) return "—";
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}B`;

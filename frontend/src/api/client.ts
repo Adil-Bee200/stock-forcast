@@ -35,6 +35,14 @@ export type PricePoint = {
 
 export type PricesResponse = { symbol: string; points: PricePoint[] };
 
+export type IntradayResponse = {
+  symbol: string;
+  interval: string;
+  points: PricePoint[];
+  as_of: string;
+  cached: boolean;
+};
+
 export type ForecastPoint = {
   created_at: string;
   forecast_for: string;

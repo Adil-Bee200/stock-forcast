@@ -405,6 +405,12 @@ button {
   color: var(--red);
 }
 
+.chart-interval-note {
+  margin: -4px 0 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 /* --- Chart --- */
 .chart-wrap {
   margin: 8px -8px 12px;

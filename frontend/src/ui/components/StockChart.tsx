@@ -16,6 +16,7 @@ type Props = {
   range: TimeRange;
   loading?: boolean;
   forecastPrice?: number | null;
+  emptyMessage?: string;
 };
 
 function ChartTooltip({
@@ -46,28 +47,33 @@ function ChartTooltip({
         Vol {fmtVolume(row.volume)}
       </div>
       <div style={{ color: "#71717a", marginTop: 2 }}>
-        {fmtChartTime(row.ts, range)}
+        {row.label ?? fmtChartTime(row.ts, range)}
       </div>
     </div>
   );
 }
 
-export function StockChart({ data, range, loading, forecastPrice }: Props) {
+export function StockChart({
+  data,
+  range,
+  loading,
+  forecastPrice,
+  emptyMessage = "No price data yet. Run the ingestion worker, then refresh.",
+}: Props) {
   if (loading && !data.length) {
     return <div className="chart-wrap skeleton" />;
   }
 
   if (!data.length) {
     return (
-      <div className="chart-wrap chart-empty">
-        No price data yet. Run the ingestion worker, then refresh.
-      </div>
+      <div className="chart-wrap chart-empty">{emptyMessage}</div>
     );
   }
 
   const min = Math.min(...data.map((d) => d.close));
   const max = Math.max(...data.map((d) => d.close));
-  const pad = (max - min) * 0.08 || max * 0.02;
+  const span = max - min;
+  const pad = (Number.isFinite(span) && span > 0 ? span * 0.08 : max * 0.02) || 1;
 
   return (
     <div className="chart-wrap">

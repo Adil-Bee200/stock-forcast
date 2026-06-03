@@ -6,7 +6,6 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# ``backend/`` — so ``.env`` resolves correctly regardless of process cwd.
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_DIR / ".env"
 ENV_LOCAL_FILE = BACKEND_DIR / ".env.local"
@@ -22,17 +21,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- App ---
     app_env: str = Field(default="development")
     log_level: str = Field(default="INFO")
     api_title: str = Field(default="Stock Predictor API")
     api_version: str = Field(default="1.0.0")
     api_description: str = Field(default="Financial predictions")
 
-    # Comma-separated origins, or ``*`` for allow-all (dev only).
     cors_origins: str = Field(default="*")
 
-    # --- Database ---
     database_url: str | None = Field(default=None)
     postgres_user: str = Field(default="postgres")
     postgres_password: str = Field(default="postgres")
@@ -43,10 +39,10 @@ class Settings(BaseSettings):
     db_echo: bool = Field(default=False)
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
-    # Dev-only: skip Alembic and call ``create_all`` on API startup.
+    # Dev-only
     db_auto_create: bool = Field(default=False)
 
-    # --- Worker (EOD ingest + nightly Prophet / baseline training) ---
+    # (EOD ingest + nightly Prophet / baseline training)
     worker_symbols: str = Field(
         default="AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA",
         description="Comma-separated tickers processed by the worker",
@@ -59,10 +55,11 @@ class Settings(BaseSettings):
     worker_train_min_rows: int = Field(default=60, ge=30)
     worker_run_on_start: bool = Field(default=False)
 
-    # --- Live intraday (planned: fetch on demand, not stored in Postgres) ---
-    market_data_provider: str = Field(default="finnhub")
+    # Live intraday fetch on demand, not stored in Postgres
+    market_data_provider: str = Field(default="twelvedata")
     market_data_api_key: str | None = Field(default=None)
-    intraday_cache_ttl_seconds: int = Field(default=60, ge=0)
+    # Backend cache + max upstream fetch interval per ticker (seconds).
+    intraday_cache_ttl_seconds: int = Field(default=300, ge=0)
 
     @field_validator("app_env", mode="before")
     @classmethod

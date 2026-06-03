@@ -1,8 +1,14 @@
-import type { AlertsResponse, ForecastsResponse, PricesResponse, SummaryTicker } from "../../api/client";
-import { useIntradayData } from "../../hooks/useIntradayData";
+import type {
+  AlertsResponse,
+  ErrorInfo,
+  ForecastsResponse,
+  IntradayResponse,
+  PricesResponse,
+  SummaryTicker,
+} from "../../api/client";
 import { buildNewsItems } from "../../data/news";
 import type { TimeRange } from "../../utils/chart";
-import { filterByRange } from "../../utils/chart";
+import { computeRangeChangePct, filterByRange } from "../../utils/chart";
 import { fmtChartTime, fmtIntradayChartTime } from "../../utils/format";
 import { ErrorBanner } from "./ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./ForecastPanel";
@@ -21,20 +27,13 @@ type Props = {
   range: TimeRange;
   onRangeChange: (r: TimeRange) => void;
   loading: boolean;
+  intraday?: IntradayResponse | null;
+  intradayLoading?: boolean;
+  intradayErr?: ErrorInfo | null;
   showBack?: boolean;
   onBack?: () => void;
   showMobileFabs?: boolean;
 };
-
-function sessionChangePct(
-  points: { close: number }[],
-): number | null {
-  if (points.length < 2) return null;
-  const first = points[0].close;
-  const last = points[points.length - 1].close;
-  if (!first) return null;
-  return ((last - first) / first) * 100;
-}
 
 export function StockDetail({
   symbol,
@@ -45,16 +44,14 @@ export function StockDetail({
   range,
   onRangeChange,
   loading,
+  intraday = null,
+  intradayLoading = false,
+  intradayErr = null,
   showBack,
   onBack,
   showMobileFabs = true,
 }: Props) {
   const isIntraday = range === "1D";
-  const {
-    intraday,
-    loading: intradayLoading,
-    error: intradayErr,
-  } = useIntradayData(symbol, isIntraday);
 
   const eodFiltered = filterByRange(prices?.points ?? [], range);
   const chartPoints = isIntraday
@@ -68,18 +65,12 @@ export function StockDetail({
     label: isIntraday ? fmtIntradayChartTime(p.ts) : fmtChartTime(p.ts, range),
   }));
 
-  const lastIntradayClose =
-    intraday?.points?.length != null && intraday.points.length > 0
-      ? intraday.points[intraday.points.length - 1].close
-      : null;
-
-  const headerPrice = isIntraday
-    ? (lastIntradayClose ?? summaryRow?.last_close ?? null)
-    : (summaryRow?.last_close ?? null);
-
-  const headerChange = isIntraday
-    ? (sessionChangePct(intraday?.points ?? []) ?? summaryRow?.change_pct ?? null)
-    : (summaryRow?.change_pct ?? null);
+  const headerPrice = summaryRow?.last_close ?? null;
+  const headerChange =
+    computeRangeChangePct(range, prices?.points ?? [], {
+      intradayPoints: intraday?.points,
+      livePrice: headerPrice,
+    }) ?? summaryRow?.change_pct ?? null;
 
   const prophetForecast = pickProphetForecast(forecasts?.forecasts);
   const latestForecast = isIntraday ? null : prophetForecast?.predicted_close ?? null;
@@ -106,7 +97,7 @@ export function StockDetail({
 
       {isIntraday && (
         <p className="chart-interval-note">
-          5-minute candles · regular session (9:30am–4:00pm ET) · refreshes every 60s
+          5-minute candles · regular session (9:30am–4:00pm ET) · live updates during market hours
           {intraday?.cached ? " · cached" : ""}
         </p>
       )}

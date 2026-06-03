@@ -9,6 +9,10 @@ import {
 } from "../api/client";
 import { useSymbolData } from "../hooks/useSymbolData";
 import {
+  mergeWatchlistWithIntraday,
+  useIntradayWatchlist,
+} from "../hooks/useIntradayWatchlist";
+import {
   buildWatchlistTickers,
   getCachedSummary,
   getStaleSummary,
@@ -97,16 +101,31 @@ export function App() {
     return () => window.clearInterval(id);
   }, [refreshSummary, refreshAlerts]);
 
-  const tickers = useMemo(
+  const watchlistSymbols = useMemo(
     () =>
-      buildWatchlistTickers(
-        summary ?? lastGoodSummary.current,
-        DEFAULT_SYMBOLS,
-      ),
-    [summary, symbol, prices],
+      summary?.tickers?.length
+        ? summary.tickers.map((t) => t.symbol)
+        : [...DEFAULT_SYMBOLS],
+    [summary],
   );
 
+  const {
+    bySymbol: intradayBySymbol,
+    loading: intradayLoading,
+    errors: intradayErrors,
+  } = useIntradayWatchlist(watchlistSymbols, true);
+
+  const tickers = useMemo(() => {
+    const base = buildWatchlistTickers(
+      summary ?? lastGoodSummary.current,
+      DEFAULT_SYMBOLS,
+    );
+    return mergeWatchlistWithIntraday(base, intradayBySymbol);
+  }, [summary, symbol, prices, intradayBySymbol]);
+
   const summaryRow = tickers.find((t) => t.symbol === symbol);
+  const activeIntraday = intradayBySymbol[symbol] ?? null;
+  const activeIntradayErr = intradayErrors[symbol] ?? null;
   const latestForecast = pickProphetForecast(forecasts?.forecasts);
   const displayError = loadErr ?? symbolErr;
 
@@ -137,6 +156,9 @@ export function App() {
             range={range}
             onRangeChange={setRange}
             loading={loading}
+            intraday={activeIntraday}
+            intradayLoading={intradayLoading}
+            intradayErr={activeIntradayErr}
             showMobileFabs={false}
           />
         </main>
@@ -207,6 +229,9 @@ export function App() {
                 range={range}
                 onRangeChange={setRange}
                 loading={loading}
+                intraday={activeIntraday}
+                intradayLoading={intradayLoading}
+                intradayErr={activeIntradayErr}
                 showBack
                 onBack={() => setMobileListOpen(true)}
               />

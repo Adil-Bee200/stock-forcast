@@ -24,14 +24,32 @@ export function fmtDate(iso: string): string {
   }
 }
 
+export const MARKET_TIMEZONE = "America/New_York";
+
 export function fmtForecastFor(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    // ``forecast_for`` is a trading session date, not a local clock time.
+    const datePart = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (datePart) {
+      const y = Number(datePart[1]);
+      const m = Number(datePart[2]) - 1;
+      const d = Number(datePart[3]);
+      const noonUtc = new Date(Date.UTC(y, m, d, 12));
+      return noonUtc.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+    }
+    return new Date(iso).toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: MARKET_TIMEZONE,
     });
   } catch {
     return iso;

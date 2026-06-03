@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from prophet import Prophet
@@ -19,6 +20,7 @@ logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 
 PROPHET_MODEL_NAME = "prophet_v1"
 NAIVE_MODEL_NAME = "naive_baseline_v1"
+ET = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -67,8 +69,15 @@ def _fit_prophet_next_day(prophet_df: pd.DataFrame) -> tuple[float, float, float
     pred = float(row["yhat"])
     lower = float(row["yhat_lower"])
     upper = float(row["yhat_upper"])
-    ds = pd.Timestamp(row["ds"]).to_pydatetime()
-    forecast_for = ds.replace(tzinfo=timezone.utc)
+    # Prophet ``ds`` is a trading calendar date (naive). Anchor at ET midnight
+    # so API/frontend show the correct US equity session day.
+    trade_day = pd.Timestamp(row["ds"]).date()
+    forecast_for = datetime(
+        trade_day.year,
+        trade_day.month,
+        trade_day.day,
+        tzinfo=ET,
+    ).astimezone(timezone.utc)
     return pred, lower, upper, forecast_for
 
 

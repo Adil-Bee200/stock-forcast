@@ -101,6 +101,14 @@ class PricesResponse(BaseModel):
     points: list[PriceCandleOut]
 
 
+class IntradayResponse(BaseModel):
+    symbol: str
+    interval: str
+    points: list[PriceCandleOut]
+    as_of: datetime
+    cached: bool = False
+
+
 class ForecastOut(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 

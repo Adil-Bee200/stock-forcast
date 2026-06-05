@@ -22,7 +22,11 @@ async def lifespan(_: FastAPI):
     yield
 
 
-_cors_origins = settings.get_cors_origins()
+try:
+    _cors_origins = settings.get_cors_origins()
+except ValueError as exc:
+    raise RuntimeError(str(exc)) from exc
+
 _allow_credentials = "*" not in _cors_origins
 
 app = FastAPI(

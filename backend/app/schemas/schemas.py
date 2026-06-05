@@ -72,6 +72,18 @@ class ForecastRead(ForecastBase):
 
 
 
+# PredictionMetrics
+
+class PredictionMetricsBase(BaseModel):
+    model_name: str
+    date: datetime
+    actual_close: float
+    predicted_close: float
+    absolute_error: float
+    percentage_error: float
+
+
+
 # API response schemas 
 
 class SummaryTickerOut(BaseModel):

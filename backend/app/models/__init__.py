@@ -1,3 +1,3 @@
-from app.models.models import Forecast, PricePoint, Ticker
+from app.models.models import Forecast, PredictionMetrics, PricePoint, Ticker
 
-__all__ = ["Ticker", "PricePoint", "Forecast"]
+__all__ = ["Ticker", "PricePoint", "Forecast", "PredictionMetrics"]

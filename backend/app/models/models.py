@@ -103,3 +103,30 @@ class Forecast(Base):
             name="uix_ticker_forecast_for_model",
         ),
     )
+
+
+class PredictionMetrics(Base):
+    __tablename__ = "prediction_metrics"
+
+    id = Column(Integer, primary_key=True)
+    ticker_id = Column(
+        Integer,
+        ForeignKey("tickers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    model_name = Column(String(100), nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
+    actual_close = Column(Float, nullable=False)
+    predicted_close = Column(Float, nullable=False)
+    absolute_error = Column(Float, nullable=False)
+    percentage_error = Column(Float, nullable=False)
+
+    __table_args__ = (
+        Index("ix_prediction_metrics_ticker_date", "ticker_id", "date"),
+        UniqueConstraint(
+            "ticker_id",
+            "model_name",
+            "date",
+            name="uix_prediction_metrics_ticker_model_date",
+        ),
+    )

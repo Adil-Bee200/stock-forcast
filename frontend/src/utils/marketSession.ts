@@ -69,3 +69,42 @@ export function msUntilSessionClose(from = new Date()): number {
   if (!isRegularMarketOpen(from)) return 0;
   return msUntil((at) => !isRegularMarketOpen(at), from);
 }
+
+/** UTC ISO timestamp for a wall-clock time on an Eastern calendar date. */
+export function etWallClockToIso(
+  dateEt: string,
+  hour: number,
+  minute: number,
+): string {
+  const [y, m, d] = dateEt.split("-").map(Number);
+  const anchor = Date.UTC(y, m - 1, d, 17, 0, 0);
+
+  for (let delta = -8 * 60; delta <= 8 * 60; delta += 1) {
+    const candidate = new Date(anchor + delta * 60_000);
+    const formattedDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: MARKET_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(candidate);
+    if (formattedDate !== dateEt) continue;
+
+    const timeParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: MARKET_TIMEZONE,
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    }).formatToParts(candidate);
+
+    const h = Number(timeParts.find((p) => p.type === "hour")?.value);
+    const min = Number(timeParts.find((p) => p.type === "minute")?.value);
+    if (h === hour && min === minute) return candidate.toISOString();
+  }
+
+  return new Date(anchor).toISOString();
+}
+
+/** 4:00 PM Eastern on the given session date (``YYYY-MM-DD``). */
+export function sessionCloseIso(sessionDateEt: string): string {
+  return etWallClockToIso(sessionDateEt, 16, 0);
+}

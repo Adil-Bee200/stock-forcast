@@ -42,23 +42,17 @@ export type ChartRow = {
 
   label: string;
 
+  /** Prophet next-session projection (yellow overlay). */
+
+  forecastClose?: number;
+
+  isForecast?: boolean;
+
 };
 
 
 
 export type SummaryEod = { ts: string; close: number };
-
-
-
-function etDateKey(iso: string): string {
-
-  return new Intl.DateTimeFormat("en-CA", {
-
-    timeZone: MARKET_TIMEZONE,
-
-  }).format(new Date(iso));
-
-}
 
 
 
@@ -225,6 +219,18 @@ function lastEodSession(points: PricePoint[]): string | null {
 }
 
 
+
+/** ET calendar date (``YYYY-MM-DD``) for an ISO timestamp. */
+export function etDateKey(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: MARKET_TIMEZONE,
+  }).format(new Date(iso));
+}
+
+export function intradaySessionEtDate(points: PricePoint[]): string | null {
+  if (!points.length) return null;
+  return etDateKey(points[points.length - 1].ts);
+}
 
 // Keep only bars from the latest intraday session (most recent ET calendar day)
 

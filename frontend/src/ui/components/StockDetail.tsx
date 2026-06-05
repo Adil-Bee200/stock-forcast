@@ -9,12 +9,15 @@ import type {
 } from "../../api/client";
 import { buildNewsItems } from "../../data/news";
 import type { TimeRange } from "../../utils/chart";
+import { useRegularMarketOpen } from "../../hooks/useRegularMarketOpen";
 import {
   computeRangeChangePct,
   filterIntradaySession,
+  intradaySessionEtDate,
   prepareEodChartSeries,
 } from "../../utils/chart";
 import { fmtChartTime, fmtIntradayChartTime } from "../../utils/format";
+import { sessionCloseIso } from "../../utils/marketSession";
 import { ErrorBanner } from "./ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./ForecastPanel";
 import { MetricsPanel } from "./MetricsPanel";
@@ -62,6 +65,7 @@ export function StockDetail({
   showMobileFabs = true,
 }: Props) {
   const isIntraday = range === "1D";
+  const marketOpen = useRegularMarketOpen();
 
   const headerPrice = summaryRow?.last_close ?? null;
   const intradaySession = filterIntradaySession(intraday?.points ?? []);
@@ -98,7 +102,18 @@ export function StockDetail({
     }) ?? summaryRow?.change_pct ?? null;
 
   const prophetForecast = pickProphetForecast(forecasts?.forecasts);
-  const latestForecast = isIntraday ? null : prophetForecast?.predicted_close ?? null;
+  const intradaySessionDate = intradaySessionEtDate(intradaySession);
+  const chartForecast =
+    isIntraday &&
+    marketOpen &&
+    intradaySessionDate &&
+    prophetForecast?.predicted_close != null
+      ? {
+          price: prophetForecast.predicted_close,
+          ts: sessionCloseIso(intradaySessionDate),
+          label: "4:00 PM ET",
+        }
+      : null;
   const news = buildNewsItems(symbol, alerts?.alerts ?? []);
 
   const chartLoading = isIntraday ? intradayLoading : loading;
@@ -131,7 +146,7 @@ export function StockDetail({
         data={chartData}
         range={range}
         loading={chartLoading}
-        forecastPrice={latestForecast}
+        forecast={chartForecast}
         emptyMessage={chartEmptyMessage}
       />
 

@@ -83,6 +83,23 @@ class PredictionMetricsBase(BaseModel):
     percentage_error: float
 
 
+class ModelMaeOut(BaseModel):
+    model_name: str
+    mae_7d: float | None = None
+    mae_30d: float | None = None
+    samples_7d: int = 0
+    samples_30d: int = 0
+
+
+class SymbolMetricsOut(BaseModel):
+    symbol: str
+    models: list[ModelMaeOut]
+
+
+class MetricsResponse(BaseModel):
+    tickers: list[SymbolMetricsOut]
+    as_of: datetime
+
 
 # API response schemas 
 

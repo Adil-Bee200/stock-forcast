@@ -5,6 +5,7 @@ import type {
   IntradayResponse,
   PricesResponse,
   SummaryTicker,
+  SymbolMetrics,
 } from "../../api/client";
 import { buildNewsItems } from "../../data/news";
 import type { TimeRange } from "../../utils/chart";
@@ -16,6 +17,7 @@ import {
 import { fmtChartTime, fmtIntradayChartTime } from "../../utils/format";
 import { ErrorBanner } from "./ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./ForecastPanel";
+import { MetricsPanel } from "./MetricsPanel";
 import { NewsSection } from "./NewsSection";
 import { StockChart } from "./StockChart";
 import { StockHeader } from "./StockHeader";
@@ -28,6 +30,7 @@ type Props = {
   eodSummaryRow?: SummaryTicker | undefined;
   prices: PricesResponse | null;
   forecasts: ForecastsResponse | null;
+  metrics?: SymbolMetrics | null;
   alerts: AlertsResponse | null;
   range: TimeRange;
   onRangeChange: (r: TimeRange) => void;
@@ -46,6 +49,7 @@ export function StockDetail({
   eodSummaryRow,
   prices,
   forecasts,
+  metrics = null,
   alerts,
   range,
   onRangeChange,
@@ -139,6 +143,7 @@ export function StockDetail({
           fallbackPrice={summaryRow?.forecast_close}
           compact
         />
+        <MetricsPanel metrics={metrics} compact />
       </div>
 
       <NewsSection items={news} />

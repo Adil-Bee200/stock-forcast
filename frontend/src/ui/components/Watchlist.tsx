@@ -1,14 +1,16 @@
-import type { SummaryTicker } from "../../api/client";
+import type { SummaryTicker, SymbolMetrics } from "../../api/client";
 import { getStockMeta } from "../../data/stockMeta";
 import { fmtChange, fmtPrice } from "../../utils/format";
+import { findModelMae, PROPHET_MODEL } from "../../utils/metrics";
 
 type Props = {
   tickers: SummaryTicker[];
+  metricsBySymbol?: Record<string, SymbolMetrics | undefined>;
   active: string;
   onSelect: (symbol: string) => void;
 };
 
-export function Watchlist({ tickers, active, onSelect }: Props) {
+export function Watchlist({ tickers, metricsBySymbol, active, onSelect }: Props) {
   return (
     <>
       <h2>Watchlist</h2>
@@ -16,6 +18,13 @@ export function Watchlist({ tickers, active, onSelect }: Props) {
       {tickers.map((t) => {
         const meta = getStockMeta(t.symbol);
         const positive = (t.change_pct ?? 0) >= 0;
+        const prophetMae = findModelMae(metricsBySymbol?.[t.symbol], PROPHET_MODEL);
+        const maeLabel =
+          prophetMae?.mae_7d != null
+            ? `7d MAE ${fmtPrice(prophetMae.mae_7d)}`
+            : prophetMae?.samples_7d
+              ? "7d MAE —"
+              : null;
         return (
           <button
             key={t.symbol}
@@ -47,6 +56,12 @@ export function Watchlist({ tickers, active, onSelect }: Props) {
               <span className={`chg ${positive ? "positive" : "negative"}`}>
                 {fmtChange(t.change_pct)}
               </span>
+              {maeLabel && (
+                <>
+                  <br />
+                  <span className="mae">{maeLabel}</span>
+                </>
+              )}
             </span>
           </button>
         );

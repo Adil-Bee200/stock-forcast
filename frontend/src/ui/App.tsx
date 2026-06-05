@@ -5,8 +5,11 @@ import {
   getErrorInfo,
   type AlertsResponse,
   type ErrorInfo,
+  type MetricsResponse,
   type SummaryResponse,
+  type SymbolMetrics,
 } from "../api/client";
+import { useEodSummaryPolling } from "../hooks/useEodSummaryPolling";
 import { useSymbolData } from "../hooks/useSymbolData";
 import {
   mergeWatchlistWithIntraday,
@@ -16,8 +19,10 @@ import { buildWatchlistTickers, setCachedSummary } from "../api/symbolCache";
 import { eodSessionDateKey, type TimeRange } from "../utils/chart";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./components/ForecastPanel";
+import { MetricsPanel } from "./components/MetricsPanel";
 import { StockDetail } from "./components/StockDetail";
 import { Watchlist } from "./components/Watchlist";
+import { metricsForSymbol } from "../utils/metrics";
 
 export function App() {
   const [symbol, setSymbol] = useState<string>("AAPL");
@@ -25,8 +30,10 @@ export function App() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const lastGoodSummary = useRef<SummaryResponse | null>(null);
   const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
+  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [loadErr, setLoadErr] = useState<ErrorInfo | null>(null);
   const [mobileListOpen, setMobileListOpen] = useState(false);
+  const metricsSessionRef = useRef<string | null>(null);
 
   const applySummary = useCallback((data: SummaryResponse) => {
     lastGoodSummary.current = data;
@@ -52,8 +59,8 @@ export function App() {
     applySummary(data);
   }, [applySummary]);
 
-  const refreshAlerts = useCallback(async () => {
-    setAlerts(await apiJson<AlertsResponse>("/api/alerts"));
+  const refreshMetrics = useCallback(async () => {
+    setMetrics(await apiJson<MetricsResponse>("/api/metrics"));
   }, []);
 
   useEffect(() => {
@@ -80,6 +87,13 @@ export function App() {
         errors.push(getErrorInfo(e));
       }
 
+      try {
+        const data = await apiJson<MetricsResponse>("/api/metrics");
+        if (!cancelled) setMetrics(data);
+      } catch (e) {
+        errors.push(getErrorInfo(e));
+      }
+
       if (!cancelled && errors.length > 0) {
         setLoadErr(errors.find((err) => err.rateLimited) ?? errors[0]);
       }
@@ -90,13 +104,17 @@ export function App() {
     };
   }, []);
 
+  useEodSummaryPolling(refreshSummary, true);
+
+  // Metrics update at most once per new EOD session (after the nightly worker).
   useEffect(() => {
-    const id = window.setInterval(() => {
-      refreshSummary().catch(() => {});
-      refreshAlerts().catch(() => {});
-    }, 45_000);
-    return () => window.clearInterval(id);
-  }, [refreshSummary, refreshAlerts]);
+    if (!summaryLastSession) return;
+    const previous = metricsSessionRef.current;
+    metricsSessionRef.current = summaryLastSession;
+    if (previous != null && summaryLastSession > previous) {
+      refreshMetrics().catch(() => {});
+    }
+  }, [summaryLastSession, refreshMetrics]);
 
   const watchlistSymbols = useMemo(
     () =>
@@ -126,6 +144,14 @@ export function App() {
   const activeIntraday = intradayBySymbol[symbol] ?? null;
   const activeIntradayErr = intradayErrors[symbol] ?? null;
   const latestForecast = pickProphetForecast(forecasts?.forecasts);
+  const activeMetrics = metricsForSymbol(metrics?.tickers, symbol);
+  const metricsBySymbol = useMemo(() => {
+    const map: Record<string, SymbolMetrics | undefined> = {};
+    for (const row of metrics?.tickers ?? []) {
+      map[row.symbol] = row;
+    }
+    return map;
+  }, [metrics]);
   const displayError = loadErr ?? symbolErr;
 
   const selectSymbol = (sym: string) => {
@@ -139,6 +165,7 @@ export function App() {
         <aside className="watchlist-panel">
           <Watchlist
             tickers={tickers}
+            metricsBySymbol={metricsBySymbol}
             active={symbol}
             onSelect={selectSymbol}
           />
@@ -152,6 +179,7 @@ export function App() {
             eodSummaryRow={eodSummaryRow}
             prices={prices}
             forecasts={forecasts}
+            metrics={activeMetrics}
             alerts={alerts}
             range={range}
             onRangeChange={setRange}
@@ -169,6 +197,7 @@ export function App() {
             forecast={latestForecast}
             fallbackPrice={summaryRow?.forecast_close}
           />
+          <MetricsPanel metrics={activeMetrics} />
         </aside>
       </div>
 
@@ -197,6 +226,7 @@ export function App() {
               </div>
               <Watchlist
                 tickers={tickers}
+                metricsBySymbol={metricsBySymbol}
                 active={symbol}
                 onSelect={selectSymbol}
               />
@@ -226,6 +256,7 @@ export function App() {
                 eodSummaryRow={eodSummaryRow}
                 prices={prices}
                 forecasts={forecasts}
+                metrics={activeMetrics}
                 alerts={alerts}
                 range={range}
                 onRangeChange={setRange}

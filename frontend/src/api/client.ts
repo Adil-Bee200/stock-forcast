@@ -55,6 +55,24 @@ export type ForecastPoint = {
 
 export type ForecastsResponse = { symbol: string; forecasts: ForecastPoint[] };
 
+export type ModelMae = {
+  model_name: string;
+  mae_7d: number | null;
+  mae_30d: number | null;
+  samples_7d: number;
+  samples_30d: number;
+};
+
+export type SymbolMetrics = {
+  symbol: string;
+  models: ModelMae[];
+};
+
+export type MetricsResponse = {
+  tickers: SymbolMetrics[];
+  as_of: string;
+};
+
 const inflight = new Map<string, Promise<unknown>>();
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {

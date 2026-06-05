@@ -1,5 +1,4 @@
 import type {
-  AlertsResponse,
   ErrorInfo,
   ForecastsResponse,
   IntradayResponse,
@@ -7,7 +6,7 @@ import type {
   SummaryTicker,
   SymbolMetrics,
 } from "../../api/client";
-import { buildNewsItems } from "../../data/news";
+import { useMetricsTrend } from "../../hooks/useMetricsTrend";
 import type { TimeRange } from "../../utils/chart";
 import { useRegularMarketOpen } from "../../hooks/useRegularMarketOpen";
 import {
@@ -18,10 +17,10 @@ import {
 } from "../../utils/chart";
 import { fmtChartTime, fmtIntradayChartTime } from "../../utils/format";
 import { sessionCloseIso } from "../../utils/marketSession";
+import { AccuracyTrendChart } from "./AccuracyTrendChart";
 import { ErrorBanner } from "./ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./ForecastPanel";
 import { MetricsPanel } from "./MetricsPanel";
-import { NewsSection } from "./NewsSection";
 import { StockChart } from "./StockChart";
 import { StockHeader } from "./StockHeader";
 import { TimeRangePicker } from "./TimeRangePicker";
@@ -34,7 +33,7 @@ type Props = {
   prices: PricesResponse | null;
   forecasts: ForecastsResponse | null;
   metrics?: SymbolMetrics | null;
-  alerts: AlertsResponse | null;
+  metricsRefreshKey?: string | null;
   range: TimeRange;
   onRangeChange: (r: TimeRange) => void;
   loading: boolean;
@@ -53,7 +52,7 @@ export function StockDetail({
   prices,
   forecasts,
   metrics = null,
-  alerts,
+  metricsRefreshKey = null,
   range,
   onRangeChange,
   loading,
@@ -114,7 +113,10 @@ export function StockDetail({
           label: "4:00 PM ET",
         }
       : null;
-  const news = buildNewsItems(symbol, alerts?.alerts ?? []);
+  const { trend: metricsTrend, loading: metricsTrendLoading } = useMetricsTrend(
+    symbol,
+    metricsRefreshKey,
+  );
 
   const chartLoading = isIntraday ? intradayLoading : loading;
   const chartEmptyMessage = isIntraday
@@ -161,7 +163,7 @@ export function StockDetail({
         <MetricsPanel metrics={metrics} compact />
       </div>
 
-      <NewsSection items={news} />
+      <AccuracyTrendChart trend={metricsTrend} loading={metricsTrendLoading} />
 
       {showMobileFabs && (
         <TradeActions onClose={onBack} />

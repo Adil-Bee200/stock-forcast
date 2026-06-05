@@ -3,7 +3,6 @@ import {
   apiJson,
   DEFAULT_SYMBOLS,
   getErrorInfo,
-  type AlertsResponse,
   type ErrorInfo,
   type MetricsResponse,
   type SummaryResponse,
@@ -29,7 +28,6 @@ export function App() {
   const [range, setRange] = useState<TimeRange>("1M");
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const lastGoodSummary = useRef<SummaryResponse | null>(null);
-  const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [loadErr, setLoadErr] = useState<ErrorInfo | null>(null);
   const [mobileListOpen, setMobileListOpen] = useState(false);
@@ -78,13 +76,6 @@ export function App() {
         if (!cancelled && lastGoodSummary.current) {
           setSummary(lastGoodSummary.current);
         }
-      }
-
-      try {
-        const data = await apiJson<AlertsResponse>("/api/alerts");
-        if (!cancelled) setAlerts(data);
-      } catch (e) {
-        errors.push(getErrorInfo(e));
       }
 
       try {
@@ -180,7 +171,7 @@ export function App() {
             prices={prices}
             forecasts={forecasts}
             metrics={activeMetrics}
-            alerts={alerts}
+            metricsRefreshKey={summaryLastSession}
             range={range}
             onRangeChange={setRange}
             loading={loading}
@@ -257,7 +248,7 @@ export function App() {
                 prices={prices}
                 forecasts={forecasts}
                 metrics={activeMetrics}
-                alerts={alerts}
+                metricsRefreshKey={summaryLastSession}
                 range={range}
                 onRangeChange={setRange}
                 loading={loading}

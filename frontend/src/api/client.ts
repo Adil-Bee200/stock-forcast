@@ -73,6 +73,22 @@ export type MetricsResponse = {
   as_of: string;
 };
 
+export type MetricTrendPoint = {
+  date: string;
+  absolute_error: number;
+  percentage_error: number;
+};
+
+export type ModelMetricTrend = {
+  model_name: string;
+  points: MetricTrendPoint[];
+};
+
+export type SymbolMetricsTrend = {
+  symbol: string;
+  models: ModelMetricTrend[];
+};
+
 const inflight = new Map<string, Promise<unknown>>();
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -120,6 +136,14 @@ export function fetchSymbolForecasts(
 ): Promise<ForecastsResponse> {
   const path = `/api/forecasts/${encodeURIComponent(symbol)}`;
   return fetchJson<ForecastsResponse>(path);
+}
+
+export function fetchSymbolMetricsTrend(
+  symbol: string,
+  sessions = 90,
+): Promise<SymbolMetricsTrend> {
+  const path = `/api/metrics/${encodeURIComponent(symbol)}/trend?sessions=${sessions}`;
+  return fetchJson<SymbolMetricsTrend>(path);
 }
 
 export const DEFAULT_SYMBOLS = [

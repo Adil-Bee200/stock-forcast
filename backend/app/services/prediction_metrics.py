@@ -12,7 +12,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models import Forecast, PredictionMetrics, PricePoint, Ticker
-from app.schemas import ModelMaeOut, SymbolMetricsOut
+from app.schemas import (
+    MetricTrendPointOut,
+    ModelMaeOut,
+    ModelMetricTrendOut,
+    SymbolMetricsOut,
+    SymbolMetricsTrendOut,
+)
 
 log = logging.getLogger(__name__)
 
@@ -337,3 +343,70 @@ def get_all_symbol_metrics(session: Session) -> list[SymbolMetricsOut]:
         )
         for ticker in tickers
     ]
+
+
+def _build_model_trends(
+    rows: list[PredictionMetrics],
+    *,
+    max_sessions: int | None,
+) -> list[ModelMetricTrendOut]:
+    by_model: dict[str, list[PredictionMetrics]] = defaultdict(list)
+    for row in rows:
+        by_model[row.model_name].append(row)
+
+    trends: list[ModelMetricTrendOut] = []
+    for model_name in MODEL_ORDER:
+        trends.append(
+            _model_trend_from_rows(by_model.get(model_name, []), model_name, max_sessions)
+        )
+
+    for model_name in sorted(by_model.keys()):
+        if model_name in MODEL_ORDER:
+            continue
+        trends.append(
+            _model_trend_from_rows(by_model[model_name], model_name, max_sessions)
+        )
+
+    return trends
+
+
+def _model_trend_from_rows(
+    rows: list[PredictionMetrics],
+    model_name: str,
+    max_sessions: int | None,
+) -> ModelMetricTrendOut:
+    by_session: dict[str, PredictionMetrics] = {}
+    for row in rows:
+        session_key = _eod_session_key(row.date)
+        by_session[session_key] = row
+
+    sessions = sorted(by_session.keys())
+    if max_sessions is not None and max_sessions > 0:
+        sessions = sessions[-max_sessions:]
+
+    points = [
+        MetricTrendPointOut(
+            date=_session_midnight_utc(session_key),
+            absolute_error=float(by_session[session_key].absolute_error),
+            percentage_error=float(by_session[session_key].percentage_error),
+        )
+        for session_key in sessions
+    ]
+    return ModelMetricTrendOut(model_name=model_name, points=points)
+
+
+def get_symbol_metrics_trend(
+    session: Session,
+    ticker: Ticker,
+    *,
+    max_sessions: int = 90,
+) -> SymbolMetricsTrendOut:
+    rows = session.scalars(
+        select(PredictionMetrics)
+        .where(PredictionMetrics.ticker_id == ticker.id)
+        .order_by(PredictionMetrics.date.asc())
+    ).all()
+    return SymbolMetricsTrendOut(
+        symbol=ticker.symbol,
+        models=_build_model_trends(rows, max_sessions=max_sessions),
+    )

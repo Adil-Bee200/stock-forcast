@@ -101,6 +101,22 @@ class MetricsResponse(BaseModel):
     as_of: datetime
 
 
+class MetricTrendPointOut(BaseModel):
+    date: datetime
+    absolute_error: float
+    percentage_error: float
+
+
+class ModelMetricTrendOut(BaseModel):
+    model_name: str
+    points: list[MetricTrendPointOut]
+
+
+class SymbolMetricsTrendOut(BaseModel):
+    symbol: str
+    models: list[ModelMetricTrendOut]
+
+
 # API response schemas 
 
 class SummaryTickerOut(BaseModel):

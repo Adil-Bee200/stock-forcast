@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from statistics import mean
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -10,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models import Forecast, PredictionMetrics, PricePoint, Ticker
+from app.schemas import ModelMaeOut, SymbolMetricsOut
 
 log = logging.getLogger(__name__)
 
@@ -237,3 +240,100 @@ def record_symbol_metrics_daily(
         session_date=latest,
         error=result.error,
     )
+
+
+PROPHET_MODEL_NAME = "prophet_v1"
+NAIVE_MODEL_NAME = "naive_baseline_v1"
+MODEL_ORDER = (PROPHET_MODEL_NAME, NAIVE_MODEL_NAME)
+
+
+def _window_mae(errors_by_date: dict[str, float], window: int) -> tuple[float | None, int]:
+    if not errors_by_date:
+        return None, 0
+    dates = sorted(errors_by_date.keys(), reverse=True)[:window]
+    errors = [errors_by_date[d] for d in dates]
+    if not errors:
+        return None, 0
+    return mean(errors), len(errors)
+
+
+def _aggregate_ticker_mae(
+    rows: list[PredictionMetrics],
+) -> list[ModelMaeOut]:
+    by_model: dict[str, dict[str, float]] = defaultdict(dict)
+    for row in rows:
+        session_key = _eod_session_key(row.date)
+        by_model[row.model_name][session_key] = float(row.absolute_error)
+
+    models: list[ModelMaeOut] = []
+    for model_name in MODEL_ORDER:
+        errors_by_date = by_model.get(model_name, {})
+        mae_7d, samples_7d = _window_mae(errors_by_date, 7)
+        mae_30d, samples_30d = _window_mae(errors_by_date, 30)
+        models.append(
+            ModelMaeOut(
+                model_name=model_name,
+                mae_7d=mae_7d,
+                mae_30d=mae_30d,
+                samples_7d=samples_7d,
+                samples_30d=samples_30d,
+            )
+        )
+
+    for model_name in sorted(by_model.keys()):
+        if model_name in MODEL_ORDER:
+            continue
+        errors_by_date = by_model[model_name]
+        mae_7d, samples_7d = _window_mae(errors_by_date, 7)
+        mae_30d, samples_30d = _window_mae(errors_by_date, 30)
+        models.append(
+            ModelMaeOut(
+                model_name=model_name,
+                mae_7d=mae_7d,
+                mae_30d=mae_30d,
+                samples_7d=samples_7d,
+                samples_30d=samples_30d,
+            )
+        )
+
+    return models
+
+
+def get_symbol_metrics(
+    session: Session,
+    ticker: Ticker,
+) -> SymbolMetricsOut:
+    rows = session.scalars(
+        select(PredictionMetrics)
+        .where(PredictionMetrics.ticker_id == ticker.id)
+        .order_by(PredictionMetrics.date.desc())
+    ).all()
+    return SymbolMetricsOut(
+        symbol=ticker.symbol,
+        models=_aggregate_ticker_mae(rows),
+    )
+
+
+def get_all_symbol_metrics(session: Session) -> list[SymbolMetricsOut]:
+    tickers = session.scalars(select(Ticker).order_by(Ticker.symbol)).all()
+    if not tickers:
+        return []
+
+    ticker_ids = [t.id for t in tickers]
+    rows = session.scalars(
+        select(PredictionMetrics)
+        .where(PredictionMetrics.ticker_id.in_(ticker_ids))
+        .order_by(PredictionMetrics.date.desc())
+    ).all()
+
+    by_ticker_id: dict[int, list[PredictionMetrics]] = defaultdict(list)
+    for row in rows:
+        by_ticker_id[row.ticker_id].append(row)
+
+    return [
+        SymbolMetricsOut(
+            symbol=ticker.symbol,
+            models=_aggregate_ticker_mae(by_ticker_id.get(ticker.id, [])),
+        )
+        for ticker in tickers
+    ]

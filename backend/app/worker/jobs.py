@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models import Ticker
 from app.services.forecast_train import TrainSymbolResult, train_symbol
+from app.services.prediction_metrics import (
+    RecordSymbolResult,
+    record_symbol_metrics_backfill,
+    record_symbol_metrics_daily,
+)
 from app.services.price_ingest import IngestSymbolResult, ingest_all
 
 log = logging.getLogger(__name__)
@@ -43,8 +48,26 @@ class TrainJobReport:
 
 
 @dataclass
+class MetricsJobReport:
+    results: list[RecordSymbolResult] = field(default_factory=list)
+
+    @property
+    def succeeded(self) -> int:
+        return sum(1 for r in self.results if r.error is None)
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for r in self.results if r.error is not None)
+
+    @property
+    def metrics_written(self) -> int:
+        return sum(r.metrics_written for r in self.results)
+
+
+@dataclass
 class DailyPipelineReport:
     ingest: IngestJobReport
+    metrics: MetricsJobReport
     train: TrainJobReport
 
 
@@ -137,11 +160,93 @@ def run_training(
     return report
 
 
+def _run_metrics(
+    session: Session,
+    symbols: list[str] | None,
+    *,
+    record_fn,
+    label: str,
+) -> MetricsJobReport:
+    syms = _resolve_symbols(session, symbols)
+    log.info("%s starting for %s", label, ", ".join(syms))
+
+    results: list[RecordSymbolResult] = []
+    for sym in syms:
+        ticker = session.scalars(
+            select(Ticker).where(Ticker.symbol == sym)
+        ).first()
+        if ticker is None:
+            results.append(
+                RecordSymbolResult(
+                    symbol=sym,
+                    metrics_written=0,
+                    error="ticker not found (run ingest first)",
+                )
+            )
+            continue
+
+        try:
+            outcome = record_fn(session, ticker)
+            if outcome.error:
+                session.rollback()
+                log.error("%s: %s", sym, outcome.error)
+            else:
+                session.commit()
+            results.append(outcome)
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            log.exception("%s failed for %s", label, sym)
+            results.append(
+                RecordSymbolResult(
+                    symbol=sym,
+                    metrics_written=0,
+                    error=str(exc),
+                )
+            )
+
+    report = MetricsJobReport(results=results)
+    log.info(
+        "%s done: %d ok, %d failed, %d rows written",
+        label,
+        report.succeeded,
+        report.failed,
+        report.metrics_written,
+    )
+    return report
+
+
+def run_metrics_recording(
+    session: Session,
+    symbols: list[str] | None = None,
+) -> MetricsJobReport:
+    """Score forecasts for the latest EOD session only (daily worker)."""
+    return _run_metrics(
+        session,
+        symbols,
+        record_fn=record_symbol_metrics_daily,
+        label="Daily prediction metrics",
+    )
+
+
+def run_metrics_backfill(
+    session: Session,
+    symbols: list[str] | None = None,
+) -> MetricsJobReport:
+    """Score all past forecasts with realized closes (one-time catch-up)."""
+    return _run_metrics(
+        session,
+        symbols,
+        record_fn=record_symbol_metrics_backfill,
+        label="Prediction metrics backfill",
+    )
+
+
 def run_daily_pipeline(
     session: Session,
     symbols: list[str] | None = None,
 ) -> DailyPipelineReport:
-    """End-of-day job: ingest latest EOD bars, then retrain all models."""
+    """End-of-day job: ingest EOD bars, score forecasts, then retrain models."""
     ingest = run_eod_ingest(session, symbols=symbols)
+    metrics = run_metrics_recording(session, symbols=symbols)
     train = run_training(session, symbols=symbols)
-    return DailyPipelineReport(ingest=ingest, train=train)
+    return DailyPipelineReport(ingest=ingest, metrics=metrics, train=train)

@@ -1,5 +1,7 @@
 # Financial Analytics Dashboard
 
+ **Live Demo:** https://resilient-boba-64a3aa.netlify.app
+
 Full-stack stock watchlist and forecasting dashboard: EOD ingestion, Prophet + naive models, accuracy tracking, and a React UI with live intraday quotes.
 
 **Stack:** React · FastAPI · PostgreSQL · Prophet · GitHub Actions  

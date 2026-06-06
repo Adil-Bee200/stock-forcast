@@ -12,11 +12,11 @@ Full-stack stock watchlist and forecasting dashboard: EOD ingestion, Prophet + n
 
 ## At a glance
 
-- **Watchlist** — seven US equities with live session prices and Prophet 7-day MAE
+- **Watchlist** : Seven US equities with live session prices and Prophet 7-day MAE
 - **Charts** — EOD history (1W–5Y) and 5-minute intraday (1D)
-- **Forecasts** — next-session close from Prophet (95% interval) and a naive benchmark
-- **Accuracy** — daily error in Postgres, rolling MAE trend chart, model comparison
-- **Automation** — nightly worker: ingest → score forecasts → retrain
+- **Forecasts** : Next-session close from Prophet (95% interval) and a naive benchmark
+- **Accuracy** : Daily error in Postgres, rolling MAE trend chart, model comparison
+- **Automation** : Nightly worker: ingest → score forecasts → retrain
 
 <p align="center">
   <img src="docs/screenshots/mobile-watchlist.JPG" alt="Mobile watchlist" width="360" />

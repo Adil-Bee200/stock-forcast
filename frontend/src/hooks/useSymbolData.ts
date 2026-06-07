@@ -16,6 +16,8 @@ import {
 
 } from "../api/client";
 
+import { isServerWakeupError } from "../api/errors";
+
 import {
 
   getCachedForecasts,
@@ -51,6 +53,8 @@ export function useSymbolData(
   symbol: string,
 
   summaryLastSession?: string | null,
+
+  hasAppData = false,
 
 ) {
 
@@ -106,7 +110,11 @@ export function useSymbolData(
 
         if (cancelled) return;
 
-        setError(getErrorInfo(e));
+        if (hasAppData || !isServerWakeupError(e)) {
+
+          setError(getErrorInfo(e));
+
+        }
 
       })
 
@@ -136,7 +144,11 @@ export function useSymbolData(
 
           if (cancelled) return;
 
-          setError((prev) => prev ?? getErrorInfo(e));
+          if (hasAppData || !isServerWakeupError(e)) {
+
+            setError((prev) => prev ?? getErrorInfo(e));
+
+          }
 
           setForecasts((current) => current ?? getStaleForecasts(symbol));
 
@@ -152,7 +164,7 @@ export function useSymbolData(
 
     };
 
-  }, [symbol]);
+  }, [symbol, hasAppData]);
 
 
 

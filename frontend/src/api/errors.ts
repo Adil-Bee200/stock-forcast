@@ -62,3 +62,22 @@ export function getErrorInfo(error: unknown): ErrorInfo {
   }
   return { message: String(error), rateLimited: false };
 }
+
+// Render cold-start / unreachable API (e.g. Render free tier waking up).
+export function isServerWakeupError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === 502 || error.status === 503 || error.status === 504;
+  }
+  if (error instanceof TypeError) {
+    return true;
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return (
+      msg.includes("failed to fetch") ||
+      msg.includes("networkerror") ||
+      msg.includes("load failed")
+    );
+  }
+  return false;
+}

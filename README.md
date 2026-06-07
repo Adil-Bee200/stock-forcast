@@ -33,10 +33,6 @@ Full-stack stock watchlist and forecasting dashboard: EOD ingestion, Prophet + n
 | **Forecast target** | Next **trading day** close | Both models predict the **next session’s EOD close**, not an intraday path |
 | **Metrics scoring** | After EOD is ingested | Stored forecast vs realized `price_points.close` for that session |
 
-**Example:** After Tuesday night’s worker run, models predict **Wednesday’s** close. On Wednesday during market hours, the 1D chart shows a yellow dashed line from the current price to **4:00 PM ET** at the predicted level, it disappears after the session ends.
-
-> **Screenshot to add:** `docs/screenshots/intraday-forecast.png` — 1D view with the yellow forecast overlay (capture during market hours).
-
 ## Architecture
 
 <p align="center">

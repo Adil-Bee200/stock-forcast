@@ -121,7 +121,7 @@ export function StockChart({
   range,
   loading,
   forecast,
-  emptyMessage = "No price data yet. Run the ingestion worker, then refresh.",
+  emptyMessage = "No price data available yet.",
 }: Props) {
   const chartData = useMemo(
     () => buildChartSeries(data, forecast),

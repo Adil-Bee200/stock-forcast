@@ -120,9 +120,8 @@ export function StockDetail({
 
   const chartLoading = isIntraday ? intradayLoading : loading;
   const chartEmptyMessage = isIntraday
-    ? intradayErr?.message ??
-      "No intraday data yet. Set MARKET_DATA_API_KEY on the API server."
-    : "No price data yet. Run the ingestion worker, then refresh.";
+    ? "No intraday data available yet."
+    : "No price data available yet.";
 
   return (
     <>

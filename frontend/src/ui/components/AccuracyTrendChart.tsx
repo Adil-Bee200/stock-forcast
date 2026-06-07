@@ -73,8 +73,7 @@ export function AccuracyTrendChart({ trend, loading }: Props) {
           7-day rolling mean absolute error vs realized EOD close
         </p>
         <div className="accuracy-chart accuracy-chart--empty">
-          No accuracy history yet. Run the metrics backfill worker, then check back
-          after a few trading days.
+          No accuracy data available yet.
         </div>
       </section>
     );

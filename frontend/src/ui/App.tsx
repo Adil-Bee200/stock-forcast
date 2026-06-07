@@ -2,23 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiJson,
   DEFAULT_SYMBOLS,
-  getErrorInfo,
-  type ErrorInfo,
-  type MetricsResponse,
   type SummaryResponse,
   type SymbolMetrics,
 } from "../api/client";
+import { useAppBootstrap } from "../hooks/useAppBootstrap";
 import { useEodSummaryPolling } from "../hooks/useEodSummaryPolling";
 import { useSymbolData } from "../hooks/useSymbolData";
 import {
   mergeWatchlistWithIntraday,
   useIntradayWatchlist,
 } from "../hooks/useIntradayWatchlist";
-import { buildWatchlistTickers, setCachedSummary } from "../api/symbolCache";
+import { buildWatchlistTickers } from "../api/symbolCache";
 import { eodSessionDateKey, type TimeRange } from "../utils/chart";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ForecastPanel, pickProphetForecast } from "./components/ForecastPanel";
 import { MetricsPanel } from "./components/MetricsPanel";
+import { ServerWakeBanner } from "./components/ServerWakeBanner";
 import { StockDetail } from "./components/StockDetail";
 import { Watchlist } from "./components/Watchlist";
 import { metricsForSymbol } from "../utils/metrics";
@@ -26,18 +25,20 @@ import { metricsForSymbol } from "../utils/metrics";
 export function App() {
   const [symbol, setSymbol] = useState<string>("AAPL");
   const [range, setRange] = useState<TimeRange>("1M");
-  const [summary, setSummary] = useState<SummaryResponse | null>(null);
-  const lastGoodSummary = useRef<SummaryResponse | null>(null);
-  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
-  const [loadErr, setLoadErr] = useState<ErrorInfo | null>(null);
   const [mobileListOpen, setMobileListOpen] = useState(false);
   const metricsSessionRef = useRef<string | null>(null);
 
-  const applySummary = useCallback((data: SummaryResponse) => {
-    lastGoodSummary.current = data;
-    setCachedSummary(data);
-    setSummary(data);
-  }, []);
+  const {
+    summary,
+    lastGoodSummary,
+    metrics,
+    hasAppData,
+    markHasAppData,
+    waitingForServer,
+    loadErr,
+    applySummary,
+    refreshMetrics,
+  } = useAppBootstrap();
 
   const summaryLastSession = useMemo(() => {
     const source = summary ?? lastGoodSummary.current;
@@ -50,54 +51,21 @@ export function App() {
     forecasts,
     loading,
     error: symbolErr,
-  } = useSymbolData(symbol, summaryLastSession);
+  } = useSymbolData(symbol, summaryLastSession, hasAppData);
+
+  useEffect(() => {
+    if (prices?.points?.length) {
+      markHasAppData();
+    }
+  }, [prices, markHasAppData]);
 
   const refreshSummary = useCallback(async () => {
     const data = await apiJson<SummaryResponse>("/api/summary");
     applySummary(data);
   }, [applySummary]);
 
-  const refreshMetrics = useCallback(async () => {
-    setMetrics(await apiJson<MetricsResponse>("/api/metrics"));
-  }, []);
+  useEodSummaryPolling(refreshSummary, hasAppData);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setLoadErr(null);
-      const errors: ErrorInfo[] = [];
-
-      try {
-        const data = await apiJson<SummaryResponse>("/api/summary");
-        if (!cancelled) applySummary(data);
-      } catch (e) {
-        errors.push(getErrorInfo(e));
-        if (!cancelled && lastGoodSummary.current) {
-          setSummary(lastGoodSummary.current);
-        }
-      }
-
-      try {
-        const data = await apiJson<MetricsResponse>("/api/metrics");
-        if (!cancelled) setMetrics(data);
-      } catch (e) {
-        errors.push(getErrorInfo(e));
-      }
-
-      if (!cancelled && errors.length > 0) {
-        setLoadErr(errors.find((err) => err.rateLimited) ?? errors[0]);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEodSummaryPolling(refreshSummary, true);
-
-  // Metrics update at most once per new EOD session (after the nightly worker).
   useEffect(() => {
     if (!summaryLastSession) return;
     const previous = metricsSessionRef.current;
@@ -119,7 +87,7 @@ export function App() {
     bySymbol: intradayBySymbol,
     loading: intradayLoading,
     errors: intradayErrors,
-  } = useIntradayWatchlist(watchlistSymbols, true);
+  } = useIntradayWatchlist(watchlistSymbols, hasAppData);
 
   const tickers = useMemo(() => {
     const base = buildWatchlistTickers(
@@ -143,7 +111,9 @@ export function App() {
     }
     return map;
   }, [metrics]);
-  const displayError = loadErr ?? symbolErr;
+
+  const showWakeBanner = !hasAppData && waitingForServer;
+  const displayError = showWakeBanner ? null : hasAppData ? (loadErr ?? symbolErr) : loadErr;
 
   const selectSymbol = (sym: string) => {
     setSymbol(sym);
@@ -163,6 +133,9 @@ export function App() {
         </aside>
 
         <main className="main-panel">
+          {showWakeBanner && (
+            <ServerWakeBanner style={{ marginBottom: 16 }} />
+          )}
           <ErrorBanner error={displayError} style={{ marginBottom: 16 }} />
           <StockDetail
             symbol={symbol}
@@ -193,6 +166,9 @@ export function App() {
       </div>
 
       <div className="mobile-shell mobile-only">
+        {showWakeBanner && (
+          <ServerWakeBanner style={{ margin: "0 16px 12px" }} />
+        )}
         <ErrorBanner error={displayError} style={{ margin: "0 16px 12px" }} />
 
         {mobileListOpen ? (
@@ -265,4 +241,3 @@ export function App() {
     </div>
   );
 }
-
